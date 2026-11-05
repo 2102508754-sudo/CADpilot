@@ -1,0 +1,14 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "addin",
+    "id": "e6a41f87-2a4b-4b2e-b6a8-a1c2d3e4f5a6",
+    "author": "CADPilot Team",
+    "description": {
+        "": "CADPilot Bridge - JSON-RPC server connecting agentic AI to Fusion 360"
+    },
+    "version": "1.0.0",
+    "runOnStartup": false,
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}
+

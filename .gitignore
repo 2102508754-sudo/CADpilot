@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.step
+*.stl
+*.f3d
+.DS_Store
+
+# AI context documentation
+AI_CONTEXT.md
