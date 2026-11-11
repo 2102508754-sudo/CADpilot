@@ -35,9 +35,9 @@ The **Fusion Bridge** is the execution engine for CADPilot. It connects an AI ag
 | **Nov 3** | - [x] Verify Fusion environment, create Add-in skeleton, test palette logging, select stdlib HTTP transport. | - [x] Set up LangGraph environment, define initial Agent State schema (`CADState`, `TaskSpec`). | - [x] Survey mechanical spec formats, define B-Rep verification criteria and tolerance thresholds. | - [x] Add-in skeleton boots cleanly |
 | **Nov 4** | - [x] Design daemon HTTP server thread and `CustomEvent` main-thread synchronization model. | - [x] Draft prompt templates for Natural Language Spec Extractor (dimensions, hole patterns, fillets). | - [x] Specify `inspect_brep` schema with Jaidev (volume, bounding boxes, cylindrical hole features). | - [x] Architecture agreement |
 | **Nov 5** | - [x] Define shared JSON-RPC 2.0 contract (`docs/JSON_RPC_CONTRACT.md`); implement `ping` and `reset_design`. | - [x] Implement LangGraph Node 1: Spec Extractor (parsing natural language into structured geometric constraints). | - [x] Build ground-truth validation criteria (volume tolerance %, hole center coordinates). | - [x] Contract published |
-| **Nov 6** | - [ ] Implement centralized `units.py` (cm $\leftrightarrow$ mm) and `errors.py` structured error hierarchy. | - [ ] Implement LangGraph Node 2: Feasibility Pre-Flight Checker (detecting geometric contradictions). | - [ ] Draft first 10 prompts of the benchmark dataset (flat mounting plates: NEMA 17, Raspberry Pi, etc.). | - [ ] Feasibility checks active |
-| **Nov 7** | - [ ] Build stateful `mock_bridge.py` (simulating sketches, bodies, holes, fillets, and bounding boxes). | - [ ] Implement LangGraph Node 3: CAD Sequence Planner (generating ordered tool calls). | - [ ] Build standalone verification rule engine for bounding box and hole count assertions. | - [ ] Mock engine functional |
-| **Nov 8** | - [ ] Release & validate Mock Bridge and test client CLI (`client/test_client.py`). Deliver to team. | - [ ] Wire LangGraph Tool Execution Node to call `CADPilotClient` pointing to Mock Bridge. | - [ ] Connect validation harness to Mock Bridge's `inspect_brep` output; verify metric calculations. | - [ ] 🎯 **Mock Bridge Released** |
+| **Nov 6** | - [x] Implement centralized `units.py` (cm $\leftrightarrow$ mm) and `errors.py` structured error hierarchy. | - [x] Implement LangGraph Node 2: Feasibility Pre-Flight Checker (detecting geometric contradictions). | - [ ] Draft first 10 prompts of the benchmark dataset (flat mounting plates: NEMA 17, Raspberry Pi, etc.). | - [ ] Feasibility checks active |
+| **Nov 7** | - [x] Build stateful `mock_bridge.py` (simulating sketches, bodies, holes, fillets, and bounding boxes). | - [x] Implement LangGraph Node 3: CAD Sequence Planner (generating ordered tool calls). | - [ ] Build standalone verification rule engine for bounding box and hole count assertions. | - [ ] Mock engine functional |
+| **Nov 8** | - [x] Release & validate Mock Bridge and test client CLI (`client/test_client.py`). Deliver to team. | - [x] Wire LangGraph Tool Execution Node to call `CADPilotClient` pointing to Mock Bridge. | - [ ] Connect validation harness to Mock Bridge's `inspect_brep` output; verify metric calculations. | - [ ] 🎯 **Mock Bridge Released** |
 
 ---
 
@@ -129,9 +129,9 @@ The **Fusion Bridge** is the execution engine for CADPilot. It connects an AI ag
 | **Nov 3** | - [x] Verify Fusion environment, create Add-in skeleton, test palette logging, select stdlib HTTP transport. | - [x] Set up LangGraph environment, define initial Agent State schema (`CADState`, `TaskSpec`). | - [x] Survey mechanical spec formats, define B-Rep verification criteria and tolerance thresholds. | - [x] Add-in skeleton boots cleanly |
 | **Nov 4** | - [x] Design daemon HTTP server thread and `CustomEvent` main-thread synchronization model. | - [x] Draft prompt templates for Natural Language Spec Extractor (dimensions, hole patterns, fillets). | - [x] Specify `inspect_brep` schema with Jaidev (volume, bounding boxes, cylindrical hole features). | - [x] Architecture agreement |
 | **Nov 5** | - [x] Define shared JSON-RPC 2.0 contract (`docs/JSON_RPC_CONTRACT.md`); implement `ping` and `reset_design`. | - [x] Implement LangGraph Node 1: Spec Extractor (parsing natural language into structured geometric constraints). | - [x] Build ground-truth validation criteria (volume tolerance %, hole center coordinates). | - [x] Contract published |
-| **Nov 6** | - [ ] Implement centralized `units.py` (cm $\leftrightarrow$ mm) and `errors.py` structured error hierarchy. | - [ ] Implement LangGraph Node 2: Feasibility Pre-Flight Checker (detecting geometric contradictions). | - [ ] Draft first 10 prompts of the benchmark dataset (flat mounting plates: NEMA 17, Raspberry Pi, etc.). | - [ ] Feasibility checks active |
-| **Nov 7** | - [ ] Build stateful `mock_bridge.py` (simulating sketches, bodies, holes, fillets, and bounding boxes). | - [ ] Implement LangGraph Node 3: CAD Sequence Planner (generating ordered tool calls). | - [ ] Build standalone verification rule engine for bounding box and hole count assertions. | - [ ] Mock engine functional |
-| **Nov 8** | - [ ] Release & validate Mock Bridge and test client CLI (`client/test_client.py`). Deliver to team. | - [ ] Wire LangGraph Tool Execution Node to call `CADPilotClient` pointing to Mock Bridge. | - [ ] Connect validation harness to Mock Bridge's `inspect_brep` output; verify metric calculations. | - [ ] 🎯 **Mock Bridge Released** |
+| **Nov 6** | - [x] Implement centralized `units.py` (cm $\leftrightarrow$ mm) and `errors.py` structured error hierarchy. | - [x] Implement LangGraph Node 2: Feasibility Pre-Flight Checker (detecting geometric contradictions). | - [ ] Draft first 10 prompts of the benchmark dataset (flat mounting plates: NEMA 17, Raspberry Pi, etc.). | - [ ] Feasibility checks active |
+| **Nov 7** | - [x] Build stateful `mock_bridge.py` (simulating sketches, bodies, holes, fillets, and bounding boxes). | - [x] Implement LangGraph Node 3: CAD Sequence Planner (generating ordered tool calls). | - [ ] Build standalone verification rule engine for bounding box and hole count assertions. | - [ ] Mock engine functional |
+| **Nov 8** | - [x] Release & validate Mock Bridge and test client CLI (`client/test_client.py`). Deliver to team. | - [x] Wire LangGraph Tool Execution Node to call `CADPilotClient` pointing to Mock Bridge. | - [ ] Connect validation harness to Mock Bridge's `inspect_brep` output; verify metric calculations. | - [ ] 🎯 **Mock Bridge Released** |
 
 ---
 
@@ -225,6 +225,17 @@ The **Fusion Bridge** is the execution engine for CADPilot. It connects an AI ag
 ├── docs/
 │   ├── JSON_RPC_CONTRACT.md       # Complete JSON-RPC 2.0 API specification
 │   └── ARCHITECTURE.md            # Threading model, unit system & error design
+├── agent/                         # LangGraph Agent Core (Abhijit Saha)
+│   ├── state.py                  # Agent State Schema (CADState, TaskSpec, CADPlan)
+│   ├── prompts.py                # System prompts and extraction templates
+│   ├── graph.py                  # LangGraph StateGraph & Standalone state machine
+│   ├── agent.py                  # High-level CADPilotAgent class & CLI runner
+│   └── nodes/
+│       ├── spec_extractor.py     # Node 1: Natural Language Spec Extractor
+│       ├── feasibility_checker.py# Node 2: Feasibility Pre-Flight Checker
+│       ├── planner.py            # Node 3: CAD Sequence Planner
+│       ├── executor.py           # Node 4: Tool Execution Node
+│       └── reflection.py         # Node 5: Closed-Loop Self-Correction
 ├── addin/                         # The Fusion 360 Add-In
 │   ├── CADPilotBridge.manifest   # Fusion Add-In manifest file
 │   ├── CADPilotBridge.py         # Entrypoint (run, stop, CustomEventHandler)
@@ -273,10 +284,20 @@ python3 client/test_client.py reset
 python3 client/test_client.py nema17
 
 # Run all test assertions
-python3 -m unittest tests/test_mock_bridge.py
+python3 -m unittest discover -s tests
 ```
 
-### 3. Install the Real Add-In into Fusion 360
+### 3. Run the Autonomous Agent (Abhijit Saha)
+Execute the closed-loop LangGraph agent loop against Mock Bridge or live Fusion 360:
+```bash
+# Run agent with default NEMA 17 prompt on Mock Bridge
+python3 -m agent.agent --url mock
+
+# Run agent with custom prompt
+python3 -m agent.agent "Create a 42.3mm NEMA 17 mount plate with 4mm thickness, 22mm center hole, and 4x M3 holes spaced 31mm apart with 2mm fillets, export to /tmp/nema17_plate.step" --url mock
+```
+
+### 4. Install the Real Add-In into Fusion 360
 When ready to run in Fusion 360:
 ```bash
 # Auto-detects macOS or Windows Fusion AddIns directory and creates a symlink:
