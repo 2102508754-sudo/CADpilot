@@ -1,6 +1,6 @@
 """LangGraph State Graph definition for CADPilot.
 
-Defines the complete state machine topology:
+Defines the complete closed-loop state machine topology:
   [START]
      |
      v
@@ -14,7 +14,13 @@ Defines the complete state machine topology:
      |                                         |
      v                                         |
   [tool_executor] -----------------------------+
-     | (success)
+     | (modeling success)                      |
+     v                                         |
+  [brep_validator] -------(geom mismatch)------+
+     | (valid geometry)
+     v
+  [export_node]
+     | (delivered)
      v
    [END (completed)]
 """
@@ -26,6 +32,8 @@ from agent.nodes import (
     feasibility_checker_node,
     planner_node,
     tool_executor_node,
+    brep_validator_node,
+    export_node,
     reflection_node
 )
 from client.test_client import CADPilotClient
@@ -40,10 +48,18 @@ def route_after_feasibility(state: CADState) -> str:
 
 
 def route_after_executor(state: CADState) -> str:
-    """Routes to END if completed, or reflector if tool call failed."""
+    """Routes to brep_validator if modeling completed, or reflector if tool call failed."""
     status = state.get("status", "")
-    if status == "completed":
-        return "END"
+    if status in ("validating", "completed"):
+        return "brep_validator"
+    return "reflector"
+
+
+def route_after_validator(state: CADState) -> str:
+    """Routes to export_node if geometry passed, or reflector if discrepancies found."""
+    status = state.get("status", "")
+    if status == "exporting":
+        return "export_node"
     return "reflector"
 
 
@@ -70,6 +86,11 @@ def build_langgraph_app(endpoint_url: str = "mock", client: Optional[CADPilotCli
             "tool_executor",
             lambda s: tool_executor_node(s, client=client, endpoint_url=endpoint_url)
         )
+        graph.add_node("brep_validator", brep_validator_node)
+        graph.add_node(
+            "export_node",
+            lambda s: export_node(s, client=client, endpoint_url=endpoint_url)
+        )
         graph.add_node("reflector", reflection_node)
 
         # Add Edges
@@ -87,8 +108,16 @@ def build_langgraph_app(endpoint_url: str = "mock", client: Optional[CADPilotCli
         graph.add_conditional_edges(
             "tool_executor",
             route_after_executor,
-            {"END": END, "reflector": "reflector"}
+            {"brep_validator": "brep_validator", "reflector": "reflector"}
         )
+
+        graph.add_conditional_edges(
+            "brep_validator",
+            route_after_validator,
+            {"export_node": "export_node", "reflector": "reflector"}
+        )
+
+        graph.add_edge("export_node", END)
 
         graph.add_conditional_edges(
             "reflector",
@@ -102,7 +131,7 @@ def build_langgraph_app(endpoint_url: str = "mock", client: Optional[CADPilotCli
 
 
 class StandaloneCADStateMachine:
-    """Zero-dependency state machine executing the CADPilot graph logic."""
+    """Zero-dependency state machine executing the full CADPilot graph logic."""
 
     def __init__(self, endpoint_url: str = "mock", client: Optional[CADPilotClient] = None):
         self.endpoint_url = endpoint_url
@@ -111,7 +140,7 @@ class StandaloneCADStateMachine:
     def invoke(self, state: CADState) -> CADState:
         """Executes the state machine synchronously until a terminal state is reached."""
         current_node = "spec_extractor"
-        max_steps = 20
+        max_steps = 25
         step_count = 0
 
         while current_node != "END" and step_count < max_steps:
@@ -134,6 +163,15 @@ class StandaloneCADStateMachine:
                 state = tool_executor_node(state, client=self.client, endpoint_url=self.endpoint_url)
                 next_dest = route_after_executor(state)
                 current_node = next_dest
+
+            elif current_node == "brep_validator":
+                state = brep_validator_node(state)
+                next_dest = route_after_validator(state)
+                current_node = next_dest
+
+            elif current_node == "export_node":
+                state = export_node(state, client=self.client, endpoint_url=self.endpoint_url)
+                current_node = "END"
 
             elif current_node == "reflector":
                 state = reflection_node(state)
