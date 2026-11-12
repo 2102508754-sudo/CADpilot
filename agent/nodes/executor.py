@@ -1,13 +1,14 @@
 """LangGraph Node 4: Tool Execution Node.
 
 Connects to CADPilotClient (targeting Mock Bridge or live Autodesk Fusion 360)
-and dispatches ordered JSON-RPC 2.0 tool calls. Collects structured observations
-and intercepts errors for reflection.
+and dispatches ordered JSON-RPC 2.0 tool calls. Collects structured observations,
+updates entity registries, and intercepts errors for reflection.
 """
 
 from typing import Dict, Any, List, Optional
 from client.test_client import CADPilotClient
 from agent.state import CADState, PlanStep, ExecutionObservation, ReflectionState
+from agent.nodes.observation_parser import ObservationParser
 
 
 def execute_plan_steps(
@@ -27,6 +28,7 @@ def execute_plan_steps(
 
     observations: List[Dict[str, Any]] = list(state.get("observations", []))
     reflection_state = ReflectionState.from_dict(state.get("reflection", {}))
+    obs_parser = ObservationParser.from_state(state)
 
     for step_dict in plan_steps_raw:
         step = PlanStep.from_dict(step_dict)
@@ -87,6 +89,10 @@ def execute_plan_steps(
         )
         observations.append(obs.to_dict())
 
+        # Update entity token registry & lineage
+        obs_parser.parse_tool_result(step.tool, step.params, res)
+        obs_parser.update_state(state)
+
         # Track key outputs
         if step.tool == "inspect_brep":
             if "final_output" not in state:
@@ -98,10 +104,10 @@ def execute_plan_steps(
             state["final_output"]["export"] = res
 
     state["observations"] = observations
-    state["status"] = "completed"
+    state["status"] = "validating"
     if "final_output" not in state:
         state["final_output"] = {}
-    state["final_output"]["status"] = "success"
+    state["final_output"]["status"] = "in_progress"
     return state
 
 

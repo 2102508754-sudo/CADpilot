@@ -40,7 +40,7 @@ class CADPilotAgent:
     def run(self, prompt: str) -> CADState:
         """Runs the CADPilot state machine on the user prompt."""
         self.log("\n========================================================")
-        self.log(f"🤖 CADPilot Agent: Processing Request")
+        self.log("🤖 CADPilot Agent: Processing Request")
         self.log(f"📝 Prompt: \"{prompt}\"")
         self.log(f"🔗 Target Bridge: {self.endpoint_url}")
         self.log("========================================================\n")
@@ -67,19 +67,29 @@ class CADPilotAgent:
             if spec.get("fillets"):
                 self.log(f"✨ Fillets: {spec['fillets'].get('radius')}mm on {spec['fillets'].get('target')}")
 
-            final_out = state.get("final_output", {})
-            brep = final_out.get("brep", {})
-            if brep:
-                overall_bbox = brep.get("overall_bounding_box", {})
-                self.log(f"📦 Bounding Box: {overall_bbox.get('dimensions')} mm")
-                bodies = brep.get("bodies", [])
-                if bodies:
-                    self.log(f"🧊 Volume: {bodies[0].get('volume_mm3')} mm³")
-                    self.log(f"🧱 Face Count: {bodies[0].get('face_count')}")
+            # Entity Token Summary
+            entities = state.get("entities", {})
+            sketches = entities.get("sketches", {})
+            bodies = entities.get("bodies", {})
+            lineage = entities.get("token_lineage", {})
+            self.log(f"🔗 Entity Tokens: {len(sketches)} sketches, {len(bodies)} solid bodies, {len(lineage)} lineage relations")
 
-            export = final_out.get("export", {})
+            # Validation Metrics
+            val = state.get("validation", {})
+            if val:
+                metrics = val.get("metrics", {})
+                self.log(f"🔬 B-Rep Validation: {'PASSED ✅' if val.get('passed') else 'FAILED ❌'}")
+                if metrics:
+                    self.log(f"   - Actual Volume: {metrics.get('actual_volume_mm3')} mm³")
+                    self.log(f"   - Theoretical Volume: {metrics.get('theoretical_volume_mm3')} mm³ (dev: {metrics.get('volume_diff_pct')}%)")
+                    self.log(f"   - Verified Holes: {metrics.get('cylindrical_hole_count')}")
+
+            # Export Artifact
+            export = state.get("final_output", {}).get("export", {})
             if export:
-                self.log(f"💾 Exported File: {export.get('output_path')} ({export.get('file_size_bytes')} bytes)")
+                self.log(f"💾 Exported Artifact: {export.get('output_path')} ({export.get('file_size_bytes')} bytes)")
+                if export.get("verified_on_disk"):
+                    self.log("   - Artifact Verified On Disk: YES ✅")
         else:
             self.log(f"\n❌ CAD Generation FAILED with status: {status}")
             self.log(f"⚠️ Error: {state.get('error')}")

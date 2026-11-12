@@ -3,7 +3,7 @@
 Defines the centralized agent state for the LangGraph state machine,
 including the natural language specification schema (TaskSpec), geometric
 feasibility reports, CAD sequence execution plans, execution observations,
-and closed-loop reflection state.
+entity token registry and lineage, and closed-loop reflection state.
 """
 
 from typing import TypedDict, Dict, Any, List, Optional, Union
@@ -195,6 +195,113 @@ class ExecutionObservation:
 
 
 @dataclass
+class ProfileEntity:
+    """Extracted sketch profile entity."""
+    profile_id: str
+    index: int = 0
+    area_mm2: float = 0.0
+    centroid_mm: List[float] = field(default_factory=lambda: [0.0, 0.0])
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SketchEntity:
+    """Extracted 2D sketch entity."""
+    sketch_id: str
+    plane: str = "xy"
+    profiles: List[ProfileEntity] = field(default_factory=list)
+    bounding_box: Dict[str, Any] = field(default_factory=dict)
+    total_area: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = asdict(self)
+        res["profiles"] = [p.to_dict() for p in self.profiles]
+        return res
+
+
+@dataclass
+class CylindricalFeatureEntity:
+    """Extracted cylindrical hole/bore feature."""
+    face_token: str
+    radius_mm: float
+    diameter_mm: float
+    origin_mm: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    axis: List[float] = field(default_factory=lambda: [0.0, 0.0, 1.0])
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class BodyEntity:
+    """Extracted 3D solid body entity."""
+    body_id: str
+    is_solid: bool = True
+    volume_mm3: float = 0.0
+    surface_area_mm2: float = 0.0
+    face_count: int = 6
+    edge_count: int = 12
+    vertex_count: int = 8
+    bounding_box: Dict[str, Any] = field(default_factory=dict)
+    cylindrical_features: List[CylindricalFeatureEntity] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = asdict(self)
+        res["cylindrical_features"] = [c.to_dict() for c in self.cylindrical_features]
+        return res
+
+
+@dataclass
+class FeatureRecord:
+    """Tracks discrete feature creation and parent/child token lineage."""
+    feature_id: str
+    tool: str
+    params: Dict[str, Any]
+    input_tokens: List[str] = field(default_factory=list)
+    output_tokens: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class EntityRegistry:
+    """Maintains intermediate entity tokens, lineage, and active modeling references."""
+    sketches: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    bodies: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    features: List[Dict[str, Any]] = field(default_factory=list)
+    token_lineage: Dict[str, List[str]] = field(default_factory=dict)
+    active_sketch_id: Optional[str] = None
+    active_profile_id: Optional[str] = None
+    active_body_id: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = asdict(self)
+        cyls: Dict[str, Dict[str, Any]] = {}
+        for b in self.bodies.values():
+            for c in b.get("cylindrical_features", []):
+                face_tok = c.get("face_token", "")
+                if face_tok:
+                    cyls[face_tok] = c
+        res["cylindrical_features"] = cyls
+        return res
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "EntityRegistry":
+        return cls(
+            sketches=dict(data.get("sketches", {})),
+            bodies=dict(data.get("bodies", {})),
+            features=list(data.get("features", [])),
+            token_lineage=dict(data.get("token_lineage", {})),
+            active_sketch_id=data.get("active_sketch_id"),
+            active_profile_id=data.get("active_profile_id"),
+            active_body_id=data.get("active_body_id")
+        )
+
+
+@dataclass
 class ReflectionState:
     """Maintains error state and retry tracking for closed-loop self-correction."""
     retry_count: int = 0
@@ -227,17 +334,19 @@ class CADState(TypedDict, total=False):
     """LangGraph agent state schema.
 
     Contains the prompt, structured specification, pre-flight feasibility report,
-    planned sequence of operations, step-by-step observations, self-correction
-    reflection tracking, and final execution summary.
+    planned sequence of operations, step-by-step observations, entity token registry,
+    validation metrics, self-correction reflection tracking, and final execution summary.
     """
     prompt: str
     spec: Dict[str, Any]
     feasibility: Dict[str, Any]
     plan: Dict[str, Any]
     observations: List[Dict[str, Any]]
+    entities: Dict[str, Any]
+    validation: Dict[str, Any]
     reflection: Dict[str, Any]
     final_output: Dict[str, Any]
-    status: str  # "specifying", "checking", "planning", "executing", "reflecting", "completed", "failed"
+    status: str  # "specifying", "checking", "planning", "executing", "validating", "reflecting", "exporting", "completed", "failed"
     error: Optional[str]
 
 
@@ -249,6 +358,8 @@ def create_initial_cad_state(prompt: str = "") -> CADState:
         "feasibility": FeasibilityReport().to_dict(),
         "plan": {"steps": []},
         "observations": [],
+        "entities": EntityRegistry().to_dict(),
+        "validation": {},
         "reflection": ReflectionState().to_dict(),
         "final_output": {},
         "status": "specifying",
